@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Leaflet图标和轨迹绘制示例</title>
+  <link rel="stylesheet" href="./lib/leaflet.css" />
+
+  <style>
+    #map {
+      height: 100vh;
+      width: 100%;
+    }
+    
+    .control-panel {
+      position: absolute;
+      top: 10px;
+      left: 100px;
+      z-index: 1000;
+      background-color: white;
+      padding: 10px;
+      border-radius: 4px;
+      box-shadow: 0 1px 5px rgba(0,0,0,0.4);
+      max-width: 300px;
+    }
+    
+    .control-panel button {
+      margin: 5px;
+      padding: 8px 12px;
+      background-color: #3388ff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      width: 100%;
+    }
+    
+    .control-panel button:hover {
+      background-color: #0066cc;
+    }
+
+    .control-panel button.delete {
+      background-color: #ff4444;
+    }
+    
+    .control-panel button.delete:hover {
+      background-color: #cc0000;
+    }
+
+    .control-panel button.update {
+      background-color: #44aa44;
+    }
+    
+    .control-panel button.update:hover {
+      background-color: #008800;
+    }
+
+    .control-panel button.append {
+      background-color: #8844ff;
+    }
+    
+    .control-panel button.append:hover {
+      background-color: #6600cc;
+    }
+
+    .control-panel button.icon {
+      background-color: #ff8800;
+    }
+    
+    .control-panel button.icon:hover {
+      background-color: #cc6600;
+    }
+    
+    .track-info {
+      margin-top: 10px;
+      padding: 10px;
+      background-color: #f8f9fa;
+      border-radius: 4px;
+      border: 1px solid #dee2e6;
+    }
+
+    .track-list {
+      max-height: 200px;
+      overflow-y: auto;
+      margin-top: 10px;
+    }
+
+    .track-item {
+      padding: 5px;
+      margin: 5px 0;
+      background-color: #e9ecef;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .track-item:hover {
+      background-color: #dee2e6;
+    }
+
+    .track-item.active {
+      background-color: #cce5ff;
+      border: 1px solid #b8daff;
+    }
+
+    .panel-section {
+      margin-top: 15px;
+      padding-top: 15px;
+      border-top: 1px solid #dee2e6;
+    }
+
+    .panel-section h4 {
+      margin: 0 0 10px 0;
+      color: #495057;
+    }
+
+    .icon-list {
+      max-height: 150px;
+      overflow-y: auto;
+      margin-top: 10px;
+    }
+
+    .icon-item {
+      padding: 5px;
+      margin: 5px 0;
+      background-color: #e9ecef;
+      border-radius: 4px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .icon-item button {
+      padding: 2px 8px;
+      margin: 0;
+      width: auto;
+      font-size: 12px;
+    }
+  </style>
+</head>
+
+<body>
+  <script src="./lib/leaflet.js"></script>
+  <script src="./leaflet-track-drawer.js"></script>
+
+  <div id="map"></div>
+  <div class="control-panel">
+    <h3>轨迹绘制控制面板</h3>
+    
+    <!-- 轨迹操作部分 -->
+    <div class="panel-section">
+      <h4>轨迹操作</h4>
+      <button onclick="addDemoTrack()">添加示例轨迹</button>
+      <button class="update" onclick="locateSelectedTrack()">定位选中轨迹</button>
+      <button class="delete" onclick="deleteSelectedTrack()">删除选中轨迹</button>
+      <button class="update" onclick="updateSelectedTrack()">更新选中轨迹</button>
+      <button class="append" onclick="appendToSelectedTrack()">追加轨迹点</button>
+      <button onclick="clearAllTracks()">清除所有轨迹</button>
+    </div>
+
+    <!-- 图标标记操作部分 -->
+    <div class="panel-section">
+      <h4>图标标记操作</h4>
+      <button class="icon" onclick="addDemoIconMarker(false)">添加单个图标</button>
+      <button class="icon" onclick="addDemoIconMarker(true)">添加并定位图标</button>
+      <button class="icon" onclick="addDemoIconMarkers(false)">批量添加图标</button>
+      <button class="icon" onclick="addDemoIconMarkers(true)">批量添加并定位</button>
+      <button class="delete" onclick="clearAllIconMarkers()">清除所有图标</button>
+      
+      <div class="icon-list" id="iconList">
+        <!-- 图标列表将在这里动态显示 -->
+      </div>
+    </div>
+    
+    <!-- 轨迹列表部分 -->
+    <div class="panel-section">
+      <h4>轨迹列表</h4>
+      <div id="trackList" class="track-list"></div>
+    </div>
+  </div>
+
+  <script>
+    // 初始化地图
+    const map = L.map('map').setView([39.9, 116.3], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    }).addTo(map);
+
+    // 初始化轨迹绘制工具
+    const trackDrawer = L.trackMarkerDrawer(map, {
+      trackStyle: {
+        color: '#3388ff',
+        weight: 2,
+        opacity: 0.8
+      },
+      pointStyle: {
+        radius: 2,
+        fillColor: '#ff0000',
+        color: '#ff0000',
+        weight: 2
+      },
+      iconStyle: {
+        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41]
+      }
+    });
+
+    // 当前选中的轨迹ID
+    let selectedTrackId = null;
+    // 存储图标标记ID
+    let iconMarkerIds = [];
+
+    // 更新轨迹列表显示
+    function updateTrackList() {
+      const trackList = document.getElementById('trackList');
+      trackList.innerHTML = '';
+      
+      const trackIds = trackDrawer.getAllTrackIds();
+      trackIds.forEach(trackId => {
+        const track = trackDrawer.getTrack(trackId);
+        const div = document.createElement('div');
+        div.className = `track-item ${trackId === selectedTrackId ? 'active' : ''}`;
+        div.textContent = `轨迹 ${trackId.slice(0, 8)}... (${track.points.length}个点)`;
+        div.onclick = () => selectTrack(trackId);
+        trackList.appendChild(div);
+      });
+    }
+
+    // 更新图标列表显示
+    function updateIconList() {
+      const iconList = document.getElementById('iconList');
+      iconList.innerHTML = '';
+      
+      iconMarkerIds.forEach(markerId => {
+        const div = document.createElement('div');
+        div.className = 'icon-item';
+        div.innerHTML = `
+          <span>图标 ${markerId.slice(0, 8)}...</span>
+          <button class="delete" onclick="removeIconMarker('${markerId}')">删除</button>
+        `;
+        iconList.appendChild(div);
+      });
+    }
+
+    // 选择轨迹
+    function selectTrack(trackId) {
+      selectedTrackId = trackId;
+      updateTrackList();
+      // 选中轨迹时自动定位
+      locateSelectedTrack();
+    }
+
+    // 定位选中的轨迹
+    function locateSelectedTrack() {
+      if (!selectedTrackId) {
+        alert('请先选择一条轨迹');
+        return;
+      }
+      
+      trackDrawer.locateTrack(selectedTrackId, {
+        padding: [100, 100],  // 增加边距，使轨迹显示更完整
+        maxZoom: 16,          // 限制最大缩放级别
+        animate: true,        // 使用动画效果
+        duration: 1           // 动画持续1秒
+      });
+    }
+
+    // 添加示例轨迹
+    function addDemoTrack() {
+      // 生成一个示例轨迹（北京天安门附近的轨迹）
+      const points = [
+        [39.9 + Math.random(5), 116.3+ Math.random(5)],  // 天安门
+        [39.91 + Math.random(5), 116.31 + Math.random(5)],
+        [39.92 + Math.random(5), 116.32 + Math.random(5)],
+        [39.93 + Math.random(5), 116.33 + Math.random(5)],
+        [39.94 + Math.random(5), 116.34 + Math.random(5)]
+      ];
+      const color = getRandomColor();
+      const trackId = trackDrawer.addTrack(points, {
+        showPoints: true,
+        showStartIcon: true,  // 显示起点图标
+        startIconStyle: {
+          iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png'
+        },
+        startIconTitle: '轨迹起点',
+        startIconPopup: '这是轨迹的起点',
+        trackStyle: {
+          color: color, 
+        },
+        pointStyle: {
+          color: color,
+          fillColor: color
+        }
+      });
+      
+      selectTrack(trackId);
+      updateTrackList();
+    }
+
+    // 添加单个示例图标
+    function addDemoIconMarker(locate = false) {
+      const point = [
+        39.9 + Math.random() * 0.1,
+        116.3 + Math.random() * 0.1
+      ];
+      
+      const markerId = trackDrawer.addIconMarker(point, {
+        iconStyle: {
+          iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png'
+        },
+        title: locate ? '已定位的图标' : '示例图标',
+        popup: locate ? '这是一个已定位的图标标记' : '这是一个示例图标标记',
+        locate: locate,  // 是否定位到图标位置
+        locateOptions: {
+          zoom: 15,      // 定位时的缩放级别
+          animate: true, // 使用动画效果
+          duration: 0.5  // 动画持续0.5秒
+        }
+      });
+      
+      iconMarkerIds.push(markerId);
+      updateIconList();
+    }
+
+    // 批量添加示例图标
+    function addDemoIconMarkers(locate = false) {
+      // 生成一组随机点，但确保它们在一定范围内
+      const basePoint = [39.9, 116.3];
+      const points = [
+        [basePoint[0] + Math.random() * 0.05, basePoint[1] + Math.random() * 0.05],
+        [basePoint[0] + Math.random() * 0.05, basePoint[1] + Math.random() * 0.05],
+        [basePoint[0] + Math.random() * 0.05, basePoint[1] + Math.random() * 0.05]
+      ];
+      
+      const newMarkerIds = trackDrawer.addIconMarkers(points, {
+        iconStyle: {
+          iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-orange.png'
+        },
+        title: locate ? '批量定位图标' : '批量图标',
+        popup: locate ? '这是批量添加并定位的图标' : '这是批量添加的图标',
+        locate: locate,  // 是否定位到图标位置
+        locateOptions: {
+          zoom: 14,           // 定位时的缩放级别
+          animate: true,      // 使用动画效果
+          duration: 0.5,      // 动画持续0.5秒
+          fitBounds: true,    // 适应所有图标范围
+          padding: [100, 100] // 边距
+        }
+      });
+      
+      iconMarkerIds.push(...newMarkerIds);
+      updateIconList();
+    }
+
+    // 删除图标标记
+    function removeIconMarker(markerId) {
+      if (trackDrawer.removeIconMarker(markerId)) {
+        iconMarkerIds = iconMarkerIds.filter(id => id !== markerId);
+        updateIconList();
+      }
+    }
+
+    // 清除所有图标标记
+    function clearAllIconMarkers() {
+      trackDrawer.clearAllIconMarkers();
+      iconMarkerIds = [];
+      updateIconList();
+    }
+
+    // 删除选中的轨迹
+    function deleteSelectedTrack() {
+      if (!selectedTrackId) {
+        alert('请先选择一条轨迹');
+        return;
+      }
+      
+      if (trackDrawer.removeTrack(selectedTrackId)) {
+        selectedTrackId = null;
+        updateTrackList();
+      }
+    }
+
+    // 更新选中的轨迹
+    function updateSelectedTrack() {
+      if (!selectedTrackId) {
+        alert('请先选择一条轨迹');
+        return;
+      }
+
+      // 生成新的轨迹点（模拟更新）
+      const newPoints = [
+        [39.9, 116.3],
+        [39.91, 116.32],
+        [39.92, 116.33],
+        [39.93, 116.34]
+      ];
+
+      if (trackDrawer.updateTrack(selectedTrackId, newPoints, {
+        trackStyle: {
+          color: getRandomColor()
+        },
+        startIconStyle: {
+          iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-violet.png'
+        }
+      })) {
+        updateTrackList();
+      }
+    }
+
+    // 向选中轨迹追加点
+    function appendToSelectedTrack() {
+      if (!selectedTrackId) {
+        alert('请先选择一条轨迹');
+        return;
+      }
+
+      // 生成要追加的点（模拟追加）
+      const appendPoints = [
+        [39.94, 116.35],
+        [39.95, 116.36]
+      ];
+
+      if (trackDrawer.appendTrackPoints(selectedTrackId, appendPoints, {
+        startIconStyle: {
+          iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-yellow.png'
+        }
+      })) {
+        updateTrackList();
+      }
+    }
+
+    // 清除所有轨迹
+    function clearAllTracks() {
+      trackDrawer.clearAll();
+      selectedTrackId = null;
+      iconMarkerIds = [];
+      updateTrackList();
+      updateIconList();
+    }
+
+    // 生成随机颜色
+    function getRandomColor() {
+      const colors = ['#ff0000', '#00ff00', '#0000ff', '#ff00ff', '#00ffff', '#ffff00'];
+      return colors[Math.floor(Math.random() * colors.length)];
+    }
+
+    // 初始化时更新列表
+    updateTrackList();
+    updateIconList();
+  </script>
+</body>
+
+</html>
