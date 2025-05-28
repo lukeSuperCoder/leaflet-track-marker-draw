@@ -277,6 +277,74 @@
         [39.93 + Math.random(5), 116.33 + Math.random(5)],
         [39.94 + Math.random(5), 116.34 + Math.random(5)]
       ];
+
+      // 创建轨迹点tooltip内容函数
+      const createPointTooltip = (point, index) => {
+        const time = new Date();
+        time.setMinutes(time.getMinutes() - index * 5); // 每个点间隔5分钟
+        
+        return `
+          <div style="text-align: left; min-width: 180px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <h4 style="margin: 0; color: #333;">轨迹点 ${index + 1}</h4>
+              <span style="
+                padding: 2px 8px;
+                border-radius: 10px;
+                font-size: 12px;
+                background-color: #1890ff20;
+                color: #1890ff;
+                border: 1px solid #1890ff;
+              ">轨迹点</span>
+            </div>
+            <div style="color: #666; font-size: 12px;">
+              <p style="margin: 4px 0;">
+                <span style="color: #999;">经度：</span>
+                ${point[1].toFixed(6)}
+              </p>
+              <p style="margin: 4px 0;">
+                <span style="color: #999;">纬度：</span>
+                ${point[0].toFixed(6)}
+              </p>
+              <p style="margin: 4px 0;">
+                <span style="color: #999;">时间：</span>
+                ${time.toLocaleTimeString()}
+              </p>
+            </div>
+          </div>
+        `;
+      };
+
+      // 创建起始点tooltip内容
+      const startIconTooltip = `
+        <div style="text-align: left; min-width: 180px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <h4 style="margin: 0; color: #333;">轨迹起点</h4>
+            <span style="
+              padding: 2px 8px;
+              border-radius: 10px;
+              font-size: 12px;
+              background-color: #ff4d4f20;
+              color: #ff4d4f;
+              border: 1px solid #ff4d4f;
+            ">起点</span>
+          </div>
+          <div style="color: #666; font-size: 12px;">
+            <p style="margin: 4px 0;">
+              <span style="color: #999;">经度：</span>
+              ${points[0][1].toFixed(6)}
+            </p>
+            <p style="margin: 4px 0;">
+              <span style="color: #999;">纬度：</span>
+              ${points[0][0].toFixed(6)}
+            </p>
+            <p style="margin: 4px 0;">
+              <span style="color: #999;">开始时间：</span>
+              ${new Date().toLocaleTimeString()}
+            </p>
+          </div>
+        </div>
+      `;
+
       const color = getRandomColor();
       const trackId = trackDrawer.addTrack(points, {
         showPoints: true,
@@ -286,6 +354,22 @@
         },
         startIconTitle: '轨迹起点',
         startIconPopup: '这是轨迹的起点',
+        startIconTooltip: startIconTooltip,
+        startIconTooltipOptions: {
+          permanent: false,
+          direction: 'top',
+          offset: [0, -10],
+          opacity: 0.9,
+          className: 'custom-tooltip'
+        },
+        pointTooltip: createPointTooltip,
+        pointTooltipOptions: {
+          permanent: false,
+          direction: 'top',
+          offset: [0, -5],
+          opacity: 0.9,
+          className: 'custom-tooltip'
+        },
         trackStyle: {
           color: color, 
         },

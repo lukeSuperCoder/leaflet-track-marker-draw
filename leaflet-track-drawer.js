@@ -110,6 +110,36 @@ L.TrackMarkerDrawer = L.Class.extend({
   },
 
   /**
+   * 创建轨迹点标记
+   * @param {Array} point - 点位坐标 [lat, lng]
+   * @param {Object} style - 样式配置
+   * @param {Object} options - 其他选项
+   * @returns {L.CircleMarker} 轨迹点标记
+   */
+  _createTrackPointMarker: function(point, style, options = {}) {
+    const marker = L.circleMarker(point, style);
+    
+    // 添加tooltip（如果有）
+    if (options.tooltip) {
+      const tooltipContent = typeof options.tooltip === 'function' 
+        ? options.tooltip(point) 
+        : options.tooltip;
+
+      const tooltipOptions = L.extend({
+        permanent: false,
+        direction: 'top',
+        offset: [0, -5],
+        opacity: 0.9,
+        className: 'custom-tooltip'
+      }, options.tooltipOptions || {});
+
+      marker.bindTooltip(tooltipContent, tooltipOptions);
+    }
+
+    return marker;
+  },
+
+  /**
    * 添加单个IconMarker
    * @param {Array} point - 点位坐标 [lat, lng]
    * @param {Object} options - 图标配置选项
@@ -262,9 +292,13 @@ L.TrackMarkerDrawer = L.Class.extend({
   },
 
   /**
-   * 添加轨迹（重写，增加IconMarker支持）
+   * 添加轨迹（重写，增加tooltip支持）
    * @param {Array} points - 轨迹点数组，每个点格式为 [lat, lng]
    * @param {Object} options - 可选的轨迹样式配置
+   * @param {String|HTMLElement|Function} options.pointTooltip - 轨迹点的tooltip内容
+   * @param {Object} options.pointTooltipOptions - 轨迹点的tooltip配置
+   * @param {String|HTMLElement|Function} options.startIconTooltip - 起始点图标的tooltip内容
+   * @param {Object} options.startIconTooltipOptions - 起始点图标的tooltip配置
    * @returns {String} 轨迹ID
    */
   addTrack: function(points, options = {}) {
@@ -281,18 +315,33 @@ L.TrackMarkerDrawer = L.Class.extend({
     // 创建轨迹点（如果需要显示点）
     let markers = [];
     if (options.showPoints !== false) {
-      markers = points.map(point => {
-        return L.circleMarker(point, pointStyle).addTo(this.map);
+      markers = points.map((point, index) => {
+        // 创建tooltip内容函数（如果提供了tooltip选项）
+        const pointTooltip = typeof options.pointTooltip === 'function'
+          ? () => options.pointTooltip(point, index)
+          : options.pointTooltip;
+
+        return this._createTrackPointMarker(point, pointStyle, {
+          tooltip: pointTooltip,
+          tooltipOptions: options.pointTooltipOptions
+        }).addTo(this.map);
       });
     }
 
     // 创建起始点IconMarker（如果启用）
     let startMarker = null;
     if (options.showStartIcon !== false && points.length > 0) {
+      // 创建起始点tooltip内容函数（如果提供了tooltip选项）
+      const startIconTooltip = typeof options.startIconTooltip === 'function'
+        ? () => options.startIconTooltip(points[0], 0)
+        : options.startIconTooltip;
+
       startMarker = this._createIconMarker(points[0], {
         iconStyle: options.startIconStyle || this.options.iconStyle,
         title: options.startIconTitle || '起点',
-        popup: options.startIconPopup
+        popup: options.startIconPopup,
+        tooltip: startIconTooltip,
+        tooltipOptions: options.startIconTooltipOptions
       }).addTo(this.map);
     }
     
@@ -305,14 +354,15 @@ L.TrackMarkerDrawer = L.Class.extend({
       style: {
         trackStyle: trackStyle,
         pointStyle: pointStyle
-      }
+      },
+      options: options  // 保存选项，用于后续更新
     });
     
     return trackId;
   },
 
   /**
-   * 删除轨迹（重写，增加IconMarker支持）
+   * 删除轨迹（重写，增加tooltip支持）
    * @param {String} trackId - 轨迹ID
    * @returns {Boolean} 是否删除成功
    */
@@ -336,7 +386,7 @@ L.TrackMarkerDrawer = L.Class.extend({
   },
 
   /**
-   * 更新轨迹（重写，增加IconMarker支持）
+   * 更新轨迹（重写，增加tooltip支持）
    * @param {String} trackId - 轨迹ID
    * @param {Array} newPoints - 新的轨迹点数组
    * @param {Object} options - 可选的样式更新配置
@@ -356,23 +406,40 @@ L.TrackMarkerDrawer = L.Class.extend({
       
       // 创建新的点
       const pointStyle = options.pointStyle || track.style.pointStyle;
-      track.markers = newPoints.map(point => {
-        return L.circleMarker(point, pointStyle).addTo(this.map);
+      track.markers = newPoints.map((point, index) => {
+        // 创建tooltip内容函数（如果提供了tooltip选项）
+        const pointTooltip = typeof options.pointTooltip === 'function'
+          ? () => options.pointTooltip(point, index)
+          : options.pointTooltip || track.options.pointTooltip;
+
+        return this._createTrackPointMarker(point, pointStyle, {
+          tooltip: pointTooltip,
+          tooltipOptions: options.pointTooltipOptions || track.options.pointTooltipOptions
+        }).addTo(this.map);
       });
     }
     
     // 更新起始点IconMarker
     if (track.startMarker && newPoints.length > 0) {
       this.map.removeLayer(track.startMarker);
+      
+      // 创建起始点tooltip内容函数（如果提供了tooltip选项）
+      const startIconTooltip = typeof options.startIconTooltip === 'function'
+        ? () => options.startIconTooltip(newPoints[0], 0)
+        : options.startIconTooltip || track.options.startIconTooltip;
+
       track.startMarker = this._createIconMarker(newPoints[0], {
         iconStyle: options.startIconStyle || track.style.iconStyle,
         title: options.startIconTitle || '起点',
-        popup: options.startIconPopup
+        popup: options.startIconPopup,
+        tooltip: startIconTooltip,
+        tooltipOptions: options.startIconTooltipOptions || track.options.startIconTooltipOptions
       }).addTo(this.map);
     }
     
-    // 更新存储的点数据
+    // 更新存储的点数据和选项
     track.points = newPoints;
+    track.options = L.extend({}, track.options, options);
     
     // 更新样式（如果提供了新的样式）
     if (options.trackStyle) {
@@ -464,7 +531,7 @@ L.TrackMarkerDrawer = L.Class.extend({
   },
 
   /**
-   * 向轨迹末尾追加轨迹点（重写，增加IconMarker支持）
+   * 向轨迹末尾追加轨迹点（重写，增加tooltip支持）
    * @param {String} trackId - 轨迹ID
    * @param {Array} appendPoints - 要追加的轨迹点数组
    * @param {Object} options - 可选的样式更新配置
@@ -484,8 +551,17 @@ L.TrackMarkerDrawer = L.Class.extend({
     if (track.markers.length > 0) {
       // 只为新增的点创建标记
       const pointStyle = options.pointStyle || track.style.pointStyle;
-      const newMarkers = appendPoints.map(point => {
-        return L.circleMarker(point, pointStyle).addTo(this.map);
+      const newMarkers = appendPoints.map((point, index) => {
+        const actualIndex = track.points.length + index;
+        // 创建tooltip内容函数（如果提供了tooltip选项）
+        const pointTooltip = typeof options.pointTooltip === 'function'
+          ? () => options.pointTooltip(point, actualIndex)
+          : options.pointTooltip || track.options.pointTooltip;
+
+        return this._createTrackPointMarker(point, pointStyle, {
+          tooltip: pointTooltip,
+          tooltipOptions: options.pointTooltipOptions || track.options.pointTooltipOptions
+        }).addTo(this.map);
       });
       
       // 将新标记添加到现有标记数组
@@ -494,15 +570,23 @@ L.TrackMarkerDrawer = L.Class.extend({
     
     // 更新起始点IconMarker（如果之前没有）
     if (!track.startMarker && track.startMarker !== false && newPoints.length > 0) {
+      // 创建起始点tooltip内容函数（如果提供了tooltip选项）
+      const startIconTooltip = typeof options.startIconTooltip === 'function'
+        ? () => options.startIconTooltip(newPoints[0], 0)
+        : options.startIconTooltip || track.options.startIconTooltip;
+
       track.startMarker = this._createIconMarker(newPoints[0], {
         iconStyle: options.startIconStyle || this.options.iconStyle,
         title: options.startIconTitle || '起点',
-        popup: options.startIconPopup
+        popup: options.startIconPopup,
+        tooltip: startIconTooltip,
+        tooltipOptions: options.startIconTooltipOptions || track.options.startIconTooltipOptions
       }).addTo(this.map);
     }
     
-    // 更新存储的点数据
+    // 更新存储的点数据和选项
     track.points = newPoints;
+    track.options = L.extend({}, track.options, options);
     
     // 更新样式（如果提供了新的样式）
     if (options.trackStyle) {
