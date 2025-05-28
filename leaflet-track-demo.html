@@ -189,11 +189,11 @@
     const trackDrawer = L.trackMarkerDrawer(map, {
       trackStyle: {
         color: '#3388ff',
-        weight: 2,
+        weight: 5,
         opacity: 0.8
       },
       pointStyle: {
-        radius: 2,
+        radius: 5,
         fillColor: '#ff0000',
         color: '#ff0000',
         weight: 2
@@ -306,17 +306,35 @@
         116.3 + Math.random() * 0.1
       ];
       
+      // 创建自定义tooltip内容
+      const tooltipContent = `
+        <div style="text-align: center;">
+          <h4 style="margin: 0 0 5px 0; color: #333;">示例图标</h4>
+          <p style="margin: 0; color: #666;">
+            经度: ${point[1].toFixed(6)}<br>
+            纬度: ${point[0].toFixed(6)}
+          </p>
+        </div>
+      `;
+      
       const markerId = trackDrawer.addIconMarker(point, {
         iconStyle: {
           iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png'
         },
         title: locate ? '已定位的图标' : '示例图标',
         popup: locate ? '这是一个已定位的图标标记' : '这是一个示例图标标记',
-        locate: locate,  // 是否定位到图标位置
+        tooltip: tooltipContent,
+        tooltipOptions: {
+          permanent: false,
+          direction: 'top',
+          offset: [0, -10],
+          opacity: 0.9
+        },
+        locate: locate,
         locateOptions: {
-          zoom: 15,      // 定位时的缩放级别
-          animate: true, // 使用动画效果
-          duration: 0.5  // 动画持续0.5秒
+          zoom: 15,
+          animate: true,
+          duration: 0.5
         }
       });
       
@@ -326,7 +344,6 @@
 
     // 批量添加示例图标
     function addDemoIconMarkers(locate = false) {
-      // 生成一组随机点，但确保它们在一定范围内
       const basePoint = [39.9, 116.3];
       const points = [
         [basePoint[0] + Math.random() * 0.05, basePoint[1] + Math.random() * 0.05],
@@ -334,19 +351,72 @@
         [basePoint[0] + Math.random() * 0.05, basePoint[1] + Math.random() * 0.05]
       ];
       
+      // 创建自定义tooltip内容函数
+      const createTooltipContent = (point, index) => {
+        // 生成随机状态
+        const status = ['正常', '警告', '离线'][Math.floor(Math.random() * 3)];
+        const statusColor = {
+          '正常': '#52c41a',
+          '警告': '#faad14',
+          '离线': '#ff4d4f'
+        }[status];
+        
+        // 生成随机时间
+        const time = new Date();
+        time.setMinutes(time.getMinutes() - Math.floor(Math.random() * 60));
+        
+        return `
+          <div style="text-align: left; min-width: 200px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <h4 style="margin: 0; color: #333;">设备 ${index + 1}</h4>
+              <span style="
+                padding: 2px 8px;
+                border-radius: 10px;
+                font-size: 12px;
+                background-color: ${statusColor}20;
+                color: ${statusColor};
+                border: 1px solid ${statusColor};
+              ">${status}</span>
+            </div>
+            <div style="color: #666; font-size: 12px;">
+              <p style="margin: 4px 0;">
+                <span style="color: #999;">经度：</span>
+                ${point[1].toFixed(6)}
+              </p>
+              <p style="margin: 4px 0;">
+                <span style="color: #999;">纬度：</span>
+                ${point[0].toFixed(6)}
+              </p>
+              <p style="margin: 4px 0;">
+                <span style="color: #999;">更新时间：</span>
+                ${time.toLocaleTimeString()}
+              </p>
+            </div>
+          </div>
+        `;
+      };
+      
       const newMarkerIds = trackDrawer.addIconMarkers(points, {
         iconStyle: {
           iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-orange.png'
         },
         title: locate ? '批量定位图标' : '批量图标',
         popup: locate ? '这是批量添加并定位的图标' : '这是批量添加的图标',
-        locate: locate,  // 是否定位到图标位置
+        tooltip: createTooltipContent,
+        tooltipOptions: {
+          permanent: false,
+          direction: 'top',
+          offset: [0, -10],
+          opacity: 0.9,
+          className: 'custom-tooltip'
+        },
+        locate: locate,
         locateOptions: {
-          zoom: 14,           // 定位时的缩放级别
-          animate: true,      // 使用动画效果
-          duration: 0.5,      // 动画持续0.5秒
-          fitBounds: true,    // 适应所有图标范围
-          padding: [100, 100] // 边距
+          zoom: 14,
+          animate: true,
+          duration: 0.5,
+          fitBounds: true,
+          padding: [100, 100]
         }
       });
       

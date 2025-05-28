@@ -35,6 +35,7 @@
 - 图标定位功能
 - 图标样式自定义
 - 图标弹出框支持
+- 自定义 HTML Tooltip 支持
 
 ### 3. 灵活的样式配置
 
@@ -125,10 +126,23 @@ const markerId = trackDrawer.addIconMarker([39.9, 116.3], {
   },
   title: '图标标题',
   popup: '图标描述',
+  tooltip: `
+    <div style="text-align: center;">
+      <h4 style="margin: 0 0 5px 0;">自定义标题</h4>
+      <p style="margin: 0;">自定义内容</p>
+    </div>
+  `,
+  tooltipOptions: {
+    permanent: false,
+    direction: 'top',
+    offset: [0, -10],
+    opacity: 0.9,
+    className: 'custom-tooltip'
+  },
   locate: true
 });
 
-// 批量添加图标
+// 批量添加图标（使用函数动态生成tooltip内容）
 const points = [
   [39.9, 116.3],
   [39.91, 116.31],
@@ -136,12 +150,58 @@ const points = [
 ];
 
 const markerIds = trackDrawer.addIconMarkers(points, {
+  iconStyle: {
+    iconUrl: 'path/to/icon.png'
+  },
+  tooltip: (point, index) => `
+    <div style="text-align: center;">
+      <h4 style="margin: 0 0 5px 0;">图标 ${index + 1}</h4>
+      <p style="margin: 0;">
+        经度: ${point[1].toFixed(6)}<br>
+        纬度: ${point[0].toFixed(6)}
+      </p>
+    </div>
+  `,
+  tooltipOptions: {
+    permanent: false,
+    direction: 'top',
+    offset: [0, -10],
+    opacity: 0.9
+  },
   locate: true,
   locateOptions: {
     fitBounds: true,
     padding: [100, 100]
   }
 });
+```
+
+### 3.3 自定义 Tooltip 样式
+
+插件提供了默认的 tooltip 样式，同时也支持自定义样式：
+
+```css
+.custom-tooltip {
+  background-color: rgba(255, 255, 255, 0.9);
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 8px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+  font-size: 12px;
+  line-height: 1.4;
+  max-width: 200px;
+}
+
+.custom-tooltip:before {
+  content: '';
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  margin-left: -6px;
+  border-width: 6px 6px 0;
+  border-style: solid;
+  border-color: #ccc transparent transparent;
+}
 ```
 
 ## 实际应用场景

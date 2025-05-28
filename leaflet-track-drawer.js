@@ -69,6 +69,8 @@ L.TrackMarkerDrawer = L.Class.extend({
    * 创建IconMarker
    * @param {Array} point - 点位坐标 [lat, lng]
    * @param {Object} options - 图标配置选项
+   * @param {String|HTMLElement|Function} options.tooltip - 自定义tooltip内容，支持HTML字符串、DOM元素或返回内容的函数
+   * @param {Object} options.tooltipOptions - tooltip配置选项
    * @returns {L.Marker} Leaflet Marker对象
    */
   _createIconMarker: function(point, options = {}) {
@@ -87,6 +89,23 @@ L.TrackMarkerDrawer = L.Class.extend({
       marker.bindPopup(options.popup);
     }
 
+    // 添加tooltip（如果有）
+    if (options.tooltip) {
+      const tooltipContent = typeof options.tooltip === 'function' 
+        ? options.tooltip() 
+        : options.tooltip;
+
+      const tooltipOptions = L.extend({
+        permanent: false,           // 是否永久显示
+        direction: 'top',          // 显示方向
+        offset: [0, -10],          // 偏移量
+        opacity: 0.9,              // 透明度
+        className: 'custom-tooltip' // 自定义类名
+      }, options.tooltipOptions || {});
+
+      marker.bindTooltip(tooltipContent, tooltipOptions);
+    }
+
     return marker;
   },
 
@@ -94,6 +113,8 @@ L.TrackMarkerDrawer = L.Class.extend({
    * 添加单个IconMarker
    * @param {Array} point - 点位坐标 [lat, lng]
    * @param {Object} options - 图标配置选项
+   * @param {String|HTMLElement|Function} options.tooltip - 自定义tooltip内容，支持HTML字符串、DOM元素或返回内容的函数
+   * @param {Object} options.tooltipOptions - tooltip配置选项
    * @param {Boolean} options.locate - 是否定位到图标位置，默认false
    * @param {Object} options.locateOptions - 定位选项
    * @param {Number} options.locateOptions.zoom - 定位时的缩放级别，默认16
@@ -136,22 +157,39 @@ L.TrackMarkerDrawer = L.Class.extend({
    * 批量添加IconMarker
    * @param {Array} points - 点位坐标数组 [[lat, lng], ...]
    * @param {Object} options - 图标配置选项
+   * @param {String|HTMLElement|Function} options.tooltip - 自定义tooltip内容，支持HTML字符串、DOM元素或返回内容的函数
+   * @param {Object} options.tooltipOptions - tooltip配置选项
    * @param {Boolean} options.locate - 是否定位到图标位置，默认false
    * @param {Object} options.locateOptions - 定位选项
-   * @param {Number} options.locateOptions.zoom - 定位时的缩放级别，默认16
-   * @param {Boolean} options.locateOptions.animate - 是否使用动画，默认false
-   * @param {Number} options.locateOptions.duration - 动画持续时间（秒），默认1
-   * @param {Boolean} options.locateOptions.fitBounds - 是否适应所有图标范围，默认true
-   * @param {Array} options.locateOptions.padding - 边距 [top, right, bottom, left]，默认[50, 50]
    * @returns {Array} IconMarker的ID数组
    */
   addIconMarkers: function(points, options = {}) {
     const markerIds = [];
-    points.forEach(point => {
-      const markerId = this.addIconMarker(point, {
-        ...options,
-        locate: false  // 单个添加时不定位，统一在最后定位
-      });
+    
+    // 处理tooltip选项
+    const tooltipContent = options.tooltip;
+    const tooltipOptions = options.tooltipOptions || {};
+    
+    // 为每个点创建单独的配置
+    points.forEach((point, index) => {
+      // 创建当前点的配置副本
+      const pointOptions = L.extend({}, options);
+      
+      // 如果tooltip是函数，则调用函数获取当前点的tooltip内容
+      if (typeof tooltipContent === 'function') {
+        pointOptions.tooltip = tooltipContent(point, index);
+      } else {
+        pointOptions.tooltip = tooltipContent;
+      }
+      
+      // 设置tooltip选项
+      pointOptions.tooltipOptions = L.extend({}, tooltipOptions);
+      
+      // 单个添加时不定位，统一在最后定位
+      pointOptions.locate = false;
+      
+      // 添加单个图标
+      const markerId = this.addIconMarker(point, pointOptions);
       markerIds.push(markerId);
     });
 
@@ -397,6 +435,28 @@ L.TrackMarkerDrawer = L.Class.extend({
       
       .leaflet-track-point:hover {
         opacity: 0.8;
+      }
+
+      .custom-tooltip {
+        background-color: rgba(255, 255, 255, 0.9);
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        padding: 8px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        font-size: 12px;
+        line-height: 1.4;
+        max-width: 200px;
+      }
+
+      .custom-tooltip:before {
+        content: '';
+        position: absolute;
+        bottom: -6px;
+        left: 50%;
+        margin-left: -6px;
+        border-width: 6px 6px 0;
+        border-style: solid;
+        border-color: #ccc transparent transparent;
       }
     `;
     
