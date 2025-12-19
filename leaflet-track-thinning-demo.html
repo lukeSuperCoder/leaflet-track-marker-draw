@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Leaflet轨迹抽稀绘制示例</title>
+  <link rel="stylesheet" href="./lib/leaflet.css" />
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    #map {
+      height: 100vh;
+      width: 100%;
+    }
+
+    .control-panel {
+      position: absolute;
+      top: 10px;
+      left: 60px;
+      z-index: 1000;
+      background-color: white;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+      max-width: 350px;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    .control-panel h3 {
+      margin: 0 0 15px 0;
+      color: #333;
+      font-size: 18px;
+      border-bottom: 2px solid #3388ff;
+      padding-bottom: 8px;
+    }
+
+    .control-panel button {
+      margin: 5px 0;
+      padding: 10px 15px;
+      background-color: #3388ff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      width: 100%;
+      font-size: 14px;
+      transition: background-color 0.3s;
+    }
+
+    .control-panel button:hover {
+      background-color: #2266cc;
+    }
+
+    .control-panel button:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+
+    .control-panel button.delete {
+      background-color: #ff4444;
+    }
+
+    .control-panel button.delete:hover {
+      background-color: #cc0000;
+    }
+
+    .control-panel button.locate {
+      background-color: #44aa44;
+    }
+
+    .control-panel button.locate:hover {
+      background-color: #008800;
+    }
+
+    .panel-section {
+      margin-top: 15px;
+      padding-top: 15px;
+      border-top: 1px solid #e0e0e0;
+    }
+
+    .panel-section h4 {
+      margin: 0 0 10px 0;
+      color: #555;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .track-list {
+      max-height: 200px;
+      overflow-y: auto;
+      margin-top: 10px;
+    }
+
+    .track-item {
+      padding: 10px;
+      margin: 5px 0;
+      background-color: #f5f5f5;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: 2px solid transparent;
+    }
+
+    .track-item:hover {
+      background-color: #e8e8e8;
+    }
+
+    .track-item.active {
+      background-color: #cce5ff;
+      border-color: #3388ff;
+    }
+
+    .track-item .track-title {
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 5px;
+    }
+
+    .track-item .track-info {
+      font-size: 12px;
+      color: #666;
+    }
+
+    .info-panel {
+      margin-top: 10px;
+      padding: 10px;
+      background-color: #f0f8ff;
+      border-radius: 4px;
+      border-left: 3px solid #3388ff;
+    }
+
+    .info-panel .info-item {
+      margin: 5px 0;
+      font-size: 13px;
+      color: #555;
+    }
+
+    .info-panel .info-label {
+      font-weight: 600;
+      color: #333;
+    }
+
+    .performance-info {
+      margin-top: 10px;
+      padding: 10px;
+      background-color: #fff3cd;
+      border-radius: 4px;
+      border-left: 3px solid #ffc107;
+      font-size: 12px;
+      color: #856404;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 20px;
+      color: #3388ff;
+      font-size: 14px;
+    }
+
+    /* 自定义tooltip样式 */
+    .leaflet-tooltip.event-tooltip {
+      background-color: rgba(255, 255, 255, 0.95);
+      border: 2px solid #ff0000;
+      border-radius: 4px;
+      padding: 8px 12px;
+      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .leaflet-tooltip.event-tooltip::before {
+      border-top-color: #ff0000;
+    }
+  </style>
+</head>
+
+<body>
+  <script src="./lib/leaflet.js"></script>
+  <script src="./leaflet-track-thinning.js"></script>
+
+  <div id="map"></div>
+  <div class="control-panel">
+    <h3>轨迹抽稀控制面板</h3>
+
+    <!-- 基本操作 -->
+    <div class="panel-section">
+      <h4>基本操作</h4>
+      <button onclick="loadTrackData()">加载普通轨迹数据</button>
+      <button onclick="loadEventLineData()">加载异常线段数据</button>
+      <button class="locate" onclick="locateSelectedTrack()" id="locateBtn" disabled>定位选中轨迹</button>
+      <button class="delete" onclick="deleteSelectedTrack()" id="deleteBtn" disabled>删除选中轨迹</button>
+      <button class="delete" onclick="clearAllTracks()">清除所有轨迹</button>
+    </div>
+
+    <!-- 性能信息 -->
+    <div class="panel-section">
+      <h4>性能信息</h4>
+      <div class="info-panel" id="performanceInfo">
+        <div class="info-item">
+          <span class="info-label">当前缩放级别：</span>
+          <span id="zoomLevel">-</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">渲染器类型：</span>
+          <span id="rendererType">-</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 轨迹列表 -->
+    <div class="panel-section">
+      <h4>轨迹列表</h4>
+      <div id="trackList" class="track-list">
+        <div class="loading">暂无轨迹数据</div>
+      </div>
+    </div>
+
+    <!-- 选中轨迹详情 -->
+    <div class="panel-section" id="trackDetailSection" style="display: none;">
+      <h4>选中轨迹详情</h4>
+      <div class="info-panel" id="trackDetail"></div>
+    </div>
+
+    <!-- 性能提示 -->
+    <div class="panel-section">
+      <div class="performance-info">
+        <strong>性能优化说明：</strong><br>
+        • 轨迹线使用Douglas-Peucker算法简化<br>
+        • 轨迹点根据缩放级别网格抽稀<br>
+        • 超过5000点自动切换Canvas渲染<br>
+        • 特殊事件点始终保留且置顶显示
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 初始化地图
+    const map = L.map('map').setView([32.206, 119.250], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 18
+    }).addTo(map);
+
+    // 初始化轨迹抽稀插件
+    const trackThinning = L.trackThinning(map, {
+      onPointClick: function(data) {
+        console.log('点击轨迹点:', data);
+
+        let message = `轨迹ID: ${data.trackId.slice(0, 8)}...\n`;
+        message += `经度: ${data.lon.toFixed(6)}\n`;
+        message += `纬度: ${data.lat.toFixed(6)}\n`;
+
+        if (data.eventData && data.eventData.length > 0) {
+          message += `\n事件数据:\n`;
+          data.eventData.forEach((event, index) => {
+            message += `  事件${index + 1}:\n`;
+            message += `    类型: ${event.eventType}\n`;
+            message += `    ID: ${event.eventId}\n`;
+          });
+        }
+
+        alert(message);
+      }
+    });
+    window.trackThinning = trackThinning; // 方便调试
+
+    // 当前选中的轨迹ID
+    let selectedTrackId = null;
+
+    // 更新缩放级别显示
+    function updateZoomLevel() {
+      const zoom = map.getZoom();
+      document.getElementById('zoomLevel').textContent = zoom;
+    }
+
+    // 监听地图缩放
+    map.on('zoomend', updateZoomLevel);
+    updateZoomLevel();
+
+    // 加载轨迹数据
+    async function loadTrackData() {
+      try {
+        const loadingDiv = document.querySelector('#trackList .loading');
+        if (loadingDiv) {
+          loadingDiv.textContent = '正在加载轨迹数据...';
+        }
+
+        // 加载JSON数据
+        const response = await fetch('./data/轨迹中画点数据结构.json');
+        const jsonData = await response.json();
+
+        if (!jsonData.success || !jsonData.result) {
+          throw new Error('数据格式错误');
+        }
+
+        const trackData = jsonData.result;
+
+        console.log(`加载轨迹数据成功，共 ${trackData.length} 个点`);
+
+        // 记录开始时间
+        const startTime = performance.now();
+
+        // 添加轨迹
+        const trackId = trackThinning.addTrack(trackData, {
+          trackStyle: {
+            color: '#3388ff',
+            weight: 3,
+            opacity: 0.8
+          }
+        });
+
+        // 记录结束时间
+        const endTime = performance.now();
+        const renderTime = (endTime - startTime).toFixed(2);
+
+        console.log(`轨迹绘制完成，耗时: ${renderTime}ms`);
+
+        // 选中并定位到新轨迹
+        selectTrack(trackId);
+        trackThinning.locateTrack(trackId, {
+          padding: [50, 50],
+          maxZoom: 14,
+          animate: true,
+          duration: 1
+        });
+
+        // 更新渲染器类型显示
+        const trackInfo = trackThinning.getTrack(trackId);
+        const rendererType = trackData.length > 5000 ? 'Canvas' : 'SVG';
+        document.getElementById('rendererType').textContent = rendererType;
+
+        alert(`轨迹加载成功！\n\n原始点数: ${trackData.length}\n简化后点数: ${trackInfo.simplifiedPointCount}\n渲染耗时: ${renderTime}ms\n渲染器: ${rendererType}`);
+
+      } catch (error) {
+        console.error('加载轨迹数据失败:', error);
+        alert('加载轨迹数据失败: ' + error.message);
+
+        const loadingDiv = document.querySelector('#trackList .loading');
+        if (loadingDiv) {
+          loadingDiv.textContent = '加载失败';
+        }
+      }
+    }
+
+    // 更新轨迹列表
+    function updateTrackList() {
+      const trackList = document.getElementById('trackList');
+      const trackIds = trackThinning.getAllTrackIds();
+
+      if (trackIds.length === 0) {
+        trackList.innerHTML = '<div class="loading">暂无轨迹数据</div>';
+        return;
+      }
+
+      trackList.innerHTML = '';
+
+      trackIds.forEach(trackId => {
+        const trackInfo = trackThinning.getTrack(trackId);
+        const div = document.createElement('div');
+        div.className = `track-item ${trackId === selectedTrackId ? 'active' : ''}`;
+
+        div.innerHTML = `
+          <div class="track-title">轨迹 ${trackId.slice(0, 8)}...</div>
+          <div class="track-info">
+            原始点数: ${trackInfo.pointCount} 个<br>
+            简化点数: ${trackInfo.simplifiedPointCount} 个<br>
+            简化率: ${((1 - trackInfo.simplifiedPointCount / trackInfo.pointCount) * 100).toFixed(1)}%
+          </div>
+        `;
+
+        div.onclick = () => selectTrack(trackId);
+        trackList.appendChild(div);
+      });
+    }
+
+    // 选择轨迹
+    function selectTrack(trackId) {
+      selectedTrackId = trackId;
+      updateTrackList();
+      updateTrackDetail();
+
+      // 启用按钮
+      document.getElementById('locateBtn').disabled = false;
+      document.getElementById('deleteBtn').disabled = false;
+    }
+
+    // 更新轨迹详情
+    function updateTrackDetail() {
+      const detailSection = document.getElementById('trackDetailSection');
+      const detailPanel = document.getElementById('trackDetail');
+
+      if (!selectedTrackId) {
+        detailSection.style.display = 'none';
+        return;
+      }
+
+      const trackInfo = trackThinning.getTrack(selectedTrackId);
+      detailSection.style.display = 'block';
+
+      detailPanel.innerHTML = `
+        <div class="info-item">
+          <span class="info-label">轨迹ID：</span>
+          ${selectedTrackId.slice(0, 16)}...
+        </div>
+        <div class="info-item">
+          <span class="info-label">原始点数：</span>
+          ${trackInfo.pointCount}
+        </div>
+        <div class="info-item">
+          <span class="info-label">简化后点数：</span>
+          ${trackInfo.simplifiedPointCount}
+        </div>
+        <div class="info-item">
+          <span class="info-label">简化率：</span>
+          ${((1 - trackInfo.simplifiedPointCount / trackInfo.pointCount) * 100).toFixed(1)}%
+        </div>
+        <div class="info-item">
+          <span class="info-label">缓存级别：</span>
+          ${trackInfo.cacheInfo.join(', ') || '无'}
+        </div>
+      `;
+    }
+
+    // 加载异常线段数据（第二部分功能）
+    async function loadEventLineData() {
+      try {
+        const loadingDiv = document.querySelector('#trackList .loading');
+        if (loadingDiv) {
+          loadingDiv.textContent = '正在加载异常轨迹数据...';
+        }
+
+        // 加载异常数据JSON
+        const response = await fetch('./data/轨迹中画异常数据画线数据结构.json');
+        const jsonData = await response.json();
+
+        if (!jsonData.success || !jsonData.result) {
+          throw new Error('数据格式错误');
+        }
+
+        const trackData = jsonData.result;
+
+        console.log(`加载异常轨迹数据成功，共 ${trackData.length} 个点`);
+
+        // 记录开始时间
+        const startTime = performance.now();
+
+        // 添加轨迹，启用异常线段功能
+        const trackId = trackThinning.addTrack(trackData, {
+          trackStyle: {
+            color: '#256ac9',
+            weight: 3,
+            opacity: 0.8
+          },
+          // 启用异常线段功能
+          enableEventLines: true,
+          eventLinesMinZoom: 15
+        });
+
+        // 记录结束时间
+        const endTime = performance.now();
+        const renderTime = (endTime - startTime).toFixed(2);
+
+        console.log(`异常轨迹绘制完成，耗时: ${renderTime}ms`);
+
+        // 选中并定位到新轨迹
+        selectTrack(trackId);
+        trackThinning.locateTrack(trackId, {
+          padding: [50, 50],
+          maxZoom: 14,
+          animate: true,
+          duration: 1
+        });
+
+        // 更新渲染器类型显示
+        const trackInfo = trackThinning.getTrack(trackId);
+        const rendererType = trackData.length > 5000 ? 'Canvas' : 'SVG';
+        document.getElementById('rendererType').textContent = rendererType;
+
+        alert(`异常轨迹加载成功！\n\n原始点数: ${trackData.length}\n简化后点数: ${trackInfo.simplifiedPointCount}\n渲染耗时: ${renderTime}ms\n渲染器: ${rendererType}\n\n提示：缩放到15级以上可见异常红线`);
+
+      } catch (error) {
+        console.error('加载异常轨迹数据失败:', error);
+        alert('加载异常轨迹数据失败: ' + error.message);
+
+        const loadingDiv = document.querySelector('#trackList .loading');
+        if (loadingDiv) {
+          loadingDiv.textContent = '加载失败';
+        }
+      }
+    }
+
+    // 定位选中轨迹
+    function locateSelectedTrack() {
+      if (!selectedTrackId) {
+        alert('请先选择一条轨迹');
+        return;
+      }
+
+      trackThinning.locateTrack(selectedTrackId, {
+        padding: [50, 50],
+        maxZoom: 16,
+        animate: true,
+        duration: 1
+      });
+    }
+
+    // 删除选中轨迹
+    function deleteSelectedTrack() {
+      if (!selectedTrackId) {
+        alert('请先选择一条轨迹');
+        return;
+      }
+
+      if (confirm('确定要删除选中的轨迹吗？')) {
+        trackThinning.removeTrack(selectedTrackId);
+        selectedTrackId = null;
+
+        // 禁用按钮
+        document.getElementById('locateBtn').disabled = true;
+        document.getElementById('deleteBtn').disabled = true;
+
+        updateTrackList();
+        updateTrackDetail();
+      }
+    }
+
+    // 清除所有轨迹
+    function clearAllTracks() {
+      if (trackThinning.getAllTrackIds().length === 0) {
+        alert('当前没有轨迹');
+        return;
+      }
+
+      if (confirm('确定要清除所有轨迹吗？')) {
+        trackThinning.clearAll();
+        selectedTrackId = null;
+
+        // 禁用按钮
+        document.getElementById('locateBtn').disabled = true;
+        document.getElementById('deleteBtn').disabled = true;
+
+        document.getElementById('rendererType').textContent = '-';
+        updateTrackList();
+        updateTrackDetail();
+      }
+    }
+
+    // 初始化列表
+    updateTrackList();
+  </script>
+</body>
+
+</html>
