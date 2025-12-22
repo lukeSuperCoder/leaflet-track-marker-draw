@@ -91,18 +91,39 @@ L.EventTrackThinning = L.Class.extend({
     this.map._eventTrackThinningInstance = this;
     L.setOptions(this, options);
 
-    // 存储所有轨迹数据
-    this.tracks = new Map();
+    // 存储所有轨迹数据（使用不可枚举属性，防止Vue响应式系统劫持）
+    Object.defineProperty(this, 'tracks', {
+      value: new Map(),
+      writable: true,
+      enumerable: false,
+      configurable: true
+    });
 
-    // 存储高亮标记
-    this.highlights = new Map();
+    // 存储高亮标记（使用不可枚举属性，防止Vue响应式系统劫持）
+    Object.defineProperty(this, 'highlights', {
+      value: new Map(),
+      writable: true,
+      enumerable: false,
+      configurable: true
+    });
 
     // 标记是否正在进行程序化定位（防止递归）
     this._isLocating = false;
 
-    // 渲染器实例
-    this.svgRenderer = L.svg();
-    this.canvasRenderer = L.canvas();
+    // 渲染器实例（使用不可枚举属性，防止Vue响应式系统劫持）
+    Object.defineProperty(this, 'svgRenderer', {
+      value: L.svg(),
+      writable: true,
+      enumerable: false,
+      configurable: true
+    });
+
+    Object.defineProperty(this, 'canvasRenderer', {
+      value: L.canvas(),
+      writable: true,
+      enumerable: false,
+      configurable: true
+    });
 
     this._init();
   },
